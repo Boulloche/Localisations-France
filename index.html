@@ -477,9 +477,10 @@
                     <h3>Configuration du Quiz</h3>
                     
                     <div class="form-group">
-                        <label for="mapImageUrl">Image de la carte :</label>
-                        <input type="url" id="mapImageUrl" placeholder="https://github.com/.../carte.jpg" value="https://github.com/Boulloche/Localisations-France/raw/main/fond_carte_france.jpg">
-                        <button class="btn" onclick="loadMapImage()" style="width: 100%; margin-top: 5px;">Charger l'image</button>
+                        <label>Carte de France :</label>
+                        <div class="status-box" style="background: #d1ecf1; border-color: #bee5eb; color: #0c5460;">
+                            ✓ Carte chargée et prête à l'emploi
+                        </div>
                     </div>
                     
                     <div class="form-group">
@@ -506,7 +507,7 @@
                     </div>
                     
                     <div class="status-box" id="drawingStatus">
-                        Chargez une image puis sélectionnez un outil
+                        Sélectionnez un outil et cliquez sur la carte de France
                     </div>
                     
                     <h3>Localisations créées</h3>
@@ -609,39 +610,6 @@
             setupGameMap();
         }
 
-        function loadMapImage() {
-            const url = document.getElementById('mapImageUrl').value;
-            if (!url) {
-                alert('Veuillez entrer une URL d\'image valide !');
-                return;
-            }
-            
-            gameData.mapImageUrl = url;
-            const editCanvas = document.getElementById('editCanvas');
-            
-            const img = new Image();
-            img.crossOrigin = 'anonymous';
-            img.onload = function() {
-                const aspectRatio = img.height / img.width;
-                const canvasWidth = editCanvas.offsetWidth;
-                const canvasHeight = canvasWidth * aspectRatio;
-                
-                editCanvas.style.backgroundImage = `url(${url})`;
-                editCanvas.style.height = canvasHeight + 'px';
-                
-                setupDrawingCanvas();
-                
-                document.getElementById('drawingStatus').textContent = 'Image chargée ! Sélectionnez un outil et cliquez sur la carte.';
-                document.getElementById('drawingStatus').style.background = '#d4edda';
-                document.getElementById('drawingStatus').style.borderColor = '#c3e6cb';
-                document.getElementById('drawingStatus').style.color = '#155724';
-            };
-            img.onerror = function() {
-                alert('Impossible de charger l\'image. Vérifiez l\'URL.');
-            };
-            img.src = url;
-        }
-
         function setupDrawingCanvas() {
             const editCanvas = document.getElementById('editCanvas');
             const canvas = document.getElementById('drawingCanvas');
@@ -666,17 +634,18 @@
             const status = document.getElementById('drawingStatus');
             if (tool === 'point') {
                 status.textContent = 'Mode Point : Cliquez sur la carte pour placer un point';
+                status.style.background = '#e3f2fd';
+                status.style.borderColor = '#2196f3';
+                status.style.color = '#1565c0';
             } else {
                 status.textContent = 'Mode Zone : Cliquez pour dessiner les coins, double-clic pour terminer';
+                status.style.background = '#fff3e0';
+                status.style.borderColor = '#ff9800';
+                status.style.color = '#e65100';
             }
         }
 
         function handleCanvasClick(event) {
-            if (!gameData.mapImageUrl) {
-                alert('Chargez d\'abord une image de carte !');
-                return;
-            }
-            
             const locationName = document.getElementById('locationName').value.trim();
             if (!locationName) {
                 alert('Veuillez entrer un nom pour cette localisation !');
@@ -868,11 +837,6 @@
                 return;
             }
             
-            if (!gameData.mapImageUrl) {
-                alert('Veuillez charger une image de carte !');
-                return;
-            }
-            
             gameData.totalQuestions = parseInt(document.getElementById('questionCount').value);
             document.getElementById('total').textContent = gameData.totalQuestions;
             document.getElementById('totalQuestions').textContent = gameData.totalQuestions;
@@ -1054,8 +1018,32 @@
             gameData.gameStarted = false;
         }
 
-        // Initialisation
+        // Initialisation - Charger la carte automatiquement
         document.addEventListener('DOMContentLoaded', function() {
-            // Charger automatiquement l'image par défaut
-            loadMapImage();
+            // Charger automatiquement la carte de France
+            const editCanvas = document.getElementById('editCanvas');
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = function() {
+                const aspectRatio = img.height / img.width;
+                const canvasWidth = editCanvas.offsetWidth;
+                const canvasHeight = canvasWidth * aspectRatio;
+                
+                editCanvas.style.backgroundImage = `url(${gameData.mapImageUrl})`;
+                editCanvas.style.height = canvasHeight + 'px';
+                
+                setupDrawingCanvas();
+                
+                document.getElementById('drawingStatus').textContent = 'Carte de France chargée ! Sélectionnez un outil et cliquez pour dessiner.';
+                document.getElementById('drawingStatus').style.background = '#d4edda';
+                document.getElementById('drawingStatus').style.borderColor = '#c3e6cb';
+                document.getElementById('drawingStatus').style.color = '#155724';
+            };
+            img.onerror = function() {
+                document.getElementById('drawingStatus').textContent = 'Erreur lors du chargement de la carte.';
+                document.getElementById('drawingStatus').style.background = '#f8d7da';
+                document.getElementById('drawingStatus').style.borderColor = '#f5c6cb';
+                document.getElementById('drawingStatus').style.color = '#721c24';
+            };
+            img.src = gameData.mapImageUrl;
         });
