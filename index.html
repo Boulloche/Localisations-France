@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Admin Jeu de Localisation - GitHub</title>
+<style>
+body { margin: 0; font-family: Arial, sans-serif; }
+#container { display: flex; height: 90vh; }
+#map-container {
+  flex: 3;
+  position: relative;
+  border: 1px solid #333;
+  background: url("fond_carte_france.jpg") no-repeat center/contain;
+  background-size: contain;
+}
+#admin-panel {
+  flex: 1;
+  margin-left: 10px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #333;
+  overflow-y: auto;
+}
+table { width: 100%; border-collapse: collapse; flex: 1; }
+th, td { border: 1px solid #333; padding: 5px; text-align: left; }
+tr.selected { background: yellow; }
+tr.placeholder { background: #ddd; border: dashed 1px #333; }
+.zone { position: absolute; background: rgba(0, 128, 255, 0.3); cursor: pointer; }
+.handle { position: absolute; width: 8px; height: 8px; background: red; border-radius: 50%; cursor: move; }
+button { margin: 2px; padding: 5px 10px; cursor: pointer; }
+svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+input, select { width: 90%; padding: 5px; }
+#add-modal {
+  display: none;
+  position: fixed;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  background: white;
+  padding: 20px;
+  border: 1px solid #333;
+  border-radius: 5px;
+  box-shadow: 0 0 10px rgba(0,0,0,0.5);
+  z-index: 100;
+}
+</style>
+</head>
+<body>
+<h2>Mode Admin - Test GitHub</h2>
+<div id="container">
+  <div id="map-container"></div>
+  <div id="admin-panel">
+    <div>
+      <button id="add-row">Ajouter</button>
+      <button id="delete-row">Supprimer</button>
+      <button id="edit-row">Modifier</button>
+    </div>
+    <table id="locations">
+      <thead>
+        <tr><th>Nom</th><th>Type</th><th>Coordonnées</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+
+<div id="add-modal">
+  <h3>Ajouter une zone</h3>
+  <label>Nom : <input type="text" id="new-name" required></label><br>
+  <label>Type :
+    <select id="new-type">
+      <option value="point">Point</option>
+      <option value="polygone">Polygone</option>
+    </select>
+  </label><br>
+  <button id="confirm-add">Confirmer</button>
+  <button id="cancel-add">Annuler</button>
+</div>
+
+<script>
+// --- Variables globales ---
+const map = document.getElementById("map-container");
+const tbody = document.querySelector("#locations tbody");
+let selectedRow = null;
+let currentZone = null;
+let currentPoints = [];
+let handles = [];
+const actionHistory = [];
+
+// --- Fonctions utilitaires ---
+function showModal(modalId){ document.getElementById(modalId).style.display="block"; }
+function hideModal(modalId){ document.getElementById(modalId).style.display="none"; }
+function confirmAction(message){ return confirm(message); }
+
+// --- Gestion des lignes ---
+function createRow(name="Nouvelle", type="point", coords=""){
+  const tr=document.createElement("tr");
+  tr.dataset.name=name;
+  tr.dataset.type=type;
+
+  const tdName=document.createElement("td");
+  const nameInput=document.createElement("input");
+  nameInput.value=name; nameInput.readOnly=true; nameInput.style.border="none";
+  tdName.appendChild(nameInput);
+
+  const tdType=document.createElement("td");
+  const typeSelect=document.createElement("select");
+  ["Point","Polygone"].forEach(t=>{
+    const option=document.createElement("option");
+    option.value=t.toLowerCase(); option.textContent=t;
+    if(option.value===type) option.selected=true;
+    typeSelect.appendChild(option);
+  });
+  tdType.appendChild(typeSelect);
+
+  const tdCoords=document.createElement("td"); tdCoords.textContent=coords;
+  tr.appendChild(tdName); tr.appendChild(tdType); tr.appendChild(tdCoords);
+  tbody.appendChild(tr);
+
+  nameInput.addEventListener("input",()=>tr.dataset.name=nameInput.value);
+  typeSelect.addEventListener("change",()=>tr.dataset.type=typeSelect.value);
+}
+
+// --- Sélection d'une ligne ---
+tbody.addEventListener("click", e=>{
+  const row=e.target.closest("tr"); if(!row) return;
+  if(selectedRow) selectedRow.classList.remove("selected");
+  selectedRow=row; row.classList.add("selected");
+  currentPoints=[]; currentZone=null; handles.forEach(h=>h.remove()); handles=[];
+  const zoneId=row.dataset.zoneId;
+  if(zoneId){ currentZone=document.getElementById(zoneId);
+    if(row.dataset.type==="polygone") currentPoints=JSON.parse(row.cells[2].textContent||"[]"); drawHandles();
+    else if(currentZone) makeDraggable(currentZone,(nx,ny)=>row.cells[2].textContent=`x:${nx+10},y:${ny+10},r:10`);
+  }
+});
+
+// --- Ajouter ligne ---
+document.getElementById("add-row").addEventListener("click",()=>{ showModal("add-modal"); document.getElementById("new-name").value="Nouvelle zone"; });
+document.getElementById("confirm-add").addEventListener("click",()=>{
+  const name=document.getElementById("new-name").value.trim();
+  const type=document.getElementById("new-type").value;
+  if(!name){ alert("Le nom ne peut pas être vide !"); return; }
+  createRow(name,type,""); hideModal("add-modal");
+});
+document.getElementById("cancel-add").addEventListener("click",()=>hideModal("add-modal"));
+
+// --- Supprimer ligne ---
+document.getElementById("delete-row").addEventListener("click",()=>{
+  if(!selectedRow){ alert("Aucune ligne sélectionnée !"); return; }
+  if(!confirmAction(`Supprimer "${selectedRow.dataset.name}" ?`)) return;
+  const zoneId=selectedRow.dataset.zoneId;
+  if(zoneId){ const zone=document.getElementById(zoneId); if(zone) zone.remove(); }
+  selectedRow.remove(); selectedRow=null;
+});
+
+// --- Modifier ligne ---
+document.getElementById("edit-row").addEventListener("click",()=>{
+  if(!selectedRow){ alert("Aucune ligne sélectionnée !"); return; }
+  const nameInput=selectedRow.cells[0].querySelector("input");
+  const typeSelect=selectedRow.cells[1].querySelector("select");
+  nameInput.readOnly=!nameInput.readOnly;
+  typeSelect.disabled=!typeSelect.disabled;
+  if(nameInput.readOnly){ selectedRow.dataset.name=nameInput.value.trim(); selectedRow.dataset.type=typeSelect.value; nameInput.style.border="none"; }
+  else{ nameInput.style.border="1px solid #333"; nameInput.focus(); }
+});
+
+// --- Dessin sur la carte ---
+map.addEventListener("click",e=>{
+  if(!selectedRow || e.target.classList.contains("handle") || e.target.tagName==="polygon") return;
+  const rect=map.getBoundingClientRect();
+  const x=e.clientX-rect.left; const y=e.clientY-rect.top; const type=selectedRow.dataset.type;
+
+  if(type==="point"){
+    if(selectedRow.dataset.zoneId) return;
+    const zone=document.createElement("div"); zone.className="zone";
+    zone.style.left=x-10+"px"; zone.style.top=y-10+"px"; zone.style.width="20px"; zone.style.height="20px";
+    zone.id="zone"+Date.now(); selectedRow.dataset.zoneId=zone.id; map.appendChild(zone);
+    selectedRow.cells[2].textContent=`x:${x},y:${y},r:10`;
+    makeDraggable(zone,(nx,ny)=>selectedRow.cells[2].textContent=`x:${nx+10},y:${ny+10},r:10`);
+    actionHistory.push({type:"point",element:zone,row:selectedRow});
+  }
+  else if(type==="polygone"){
+    if(!currentZone){ currentZone=document.createElementNS("http://www.w3.org/2000/svg","svg");
+      currentZone.style.position="absolute"; currentZone.style.top=0; currentZone.style.left=0;
+      currentZone.setAttribute("width","100%"); currentZone.setAttribute("height","100%");
+      currentZone.id="zone"+Date.now(); selectedRow.dataset.zoneId=currentZone.id; map.appendChild(currentZone); }
+    currentPoints.push({x,y});
+    let poly=currentZone.querySelector("polygon");
+    if(!poly){ poly=document.createElementNS("http://www.w3.org/2000/svg","polygon");
+      poly.setAttribute("fill","rgba(0,128,255,0.3)"); poly.setAttribute("stroke","blue"); poly.setAttribute("stroke-width","2");
+      currentZone.appendChild(poly); }
+    poly.setAttribute("points",currentPoints.map(p=>`${p.x},${p.y}`).join(" "));
+    selectedRow.cells[2].textContent=JSON.stringify(currentPoints); drawHandles();
+    actionHistory.push({type:"polygone",element:currentZone,row:selectedRow,points:JSON.parse(JSON.stringify(currentPoints))});
+  }
+});
+
+// --- Gestion handles ---
+function clearHandles(){ handles.forEach(h=>h.remove()); handles=[]; }
+function drawHandles(){
+  clearHandles(); const poly=currentZone.querySelector("polygon");
+  currentPoints.forEach((p,i)=>{
+    const handle=document.createElement("div"); handle.className="handle";
+    handle.style.left=p.x-4+"px"; handle.style.top=p.y-4+"px"; map.appendChild(handle);
+    makeDraggable(handle,(nx,ny)=>{
+      currentPoints[i]={x:nx+4,y:ny+4};
+      poly.setAttribute("points",currentPoints.map(p=>`${p.x},${p.y}`).join(" "));
+      selectedRow.cells[2].textContent=JSON.stringify(currentPoints);
+    });
+    handles.push(handle);
+  });
+}
+
+// --- Déplacement éléments ---
+function makeDraggable(element,onMove){
+  let offsetX,offsetY;
+  element.addEventListener("mousedown",e=>{
+    e.stopPropagation();
+    const rect=map.getBoundingClientRect();
+    offsetX=e.clientX-element.getBoundingClientRect().left;
+    offsetY=e.clientY-element.getBoundingClientRect().top;
+    function moveHandler(ev){
+      const newX=ev.clientX-rect.left-offsetX;
+      const newY=ev.clientY-rect.top-offsetY;
+      element.style.left=newX+"px"; element.style.top=newY+"px"; onMove(newX,newY);
+    }
+    function upHandler(){ window.removeEventListener("mousemove",moveHandler); window.removeEventListener("mouseup",upHandler); }
+    window.addEventListener("mousemove",moveHandler);
+    window.addEventListener("mouseup",upHandler);
+  });
+}
+
+// --- Ctrl+Z ---
+window.addEventListener("keydown",e=>{
+  if(e.ctrlKey && e.key==="z"){ e.preventDefault();
+    if(actionHistory.length===0) return;
+    const lastAction=actionHistory.pop();
+    if(lastAction.type==="point"){ lastAction.element.remove(); lastAction.row.dataset.zoneId=""; lastAction.row.cells[2].textContent=""; currentZone=null; }
+    else if(lastAction.type==="polygone"){
+      const poly=lastAction.element.querySelector("polygon");
+      if(poly){ currentPoints=lastAction.points.slice(0,-1);
+        if(currentPoints.length===0){ lastAction.element.remove(); lastAction.row.dataset.zoneId=""; lastAction.row.cells[2].textContent=""; currentZone=null; }
+        else{ poly.setAttribute("points",currentPoints.map(p=>`${p.x},${p.y}`).join(" ")); lastAction.row.cells[2].textContent=JSON.stringify(currentPoints); drawHandles(); }
+      }
+    }
+  }
+});
+
+// --- Glisser-déposer lignes ---
+let draggedRow=null, placeholder=null;
+tbody.addEventListener("mousedown",e=>{
+  const row=e.target.closest("tr"); if(!row||["INPUT","SELECT"].includes(e.target.tagName)) return;
+  draggedRow=row;
+  placeholder=document.createElement("tr"); placeholder.className="placeholder"; placeholder.style.height=row.offsetHeight+"px";
+  row.parentNode.insertBefore(placeholder,row.nextSibling); row.style.opacity="0.5";
+  function moveHandler(ev){
+    const y=ev.clientY;
+    const rows=Array.from(tbody.querySelectorAll("tr")).filter(r=>r!==draggedRow&&r!==placeholder);
+    for(const r of rows){ const rect=r.getBoundingClientRect(); if(y>rect.top&&y<rect.bottom){ if(r.nextSibling!==placeholder) r.parentNode.insertBefore(placeholder,r.nextSibling); break; } }
+  }
+  function upHandler(){ placeholder.parentNode.insertBefore(draggedRow,placeholder); draggedRow.style.opacity="1"; placeholder.remove(); draggedRow=null; placeholder=null;
+    window.removeEventListener("mousemove",moveHandler); window.removeEventListener("mouseup",upHandler);
+  }
+  window.addEventListener("mousemove",moveHandler); window.addEventListener("mouseup",upHandler);
+});
+
+// --- Pré-remplissage ---
+createRow("Paris","point","");
+createRow("Marseille","point","");
+createRow("Bretagne","polygone","");
+createRow("Auvergne","polygone","");
+</script>
+</body>
+</html>
