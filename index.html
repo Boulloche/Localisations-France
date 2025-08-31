@@ -889,4 +889,173 @@
             const config = {
                 mapImageUrl: gameData.mapImageUrl,
                 locations: gameData.locations,
-                total
+                totalQuestions: gameData.totalQuestions
+            };
+            
+            const blob = new Blob([JSON.stringify(config, null, 2)], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'quiz-geo-config.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function setupGameMap() {
+            const gameMap = document.getElementById('gameMap');
+            gameMap.style.backgroundImage = `url(${gameData.mapImageUrl})`;
+            
+            const img = new Image();
+            img.onload = function() {
+                const aspectRatio = img.height / img.width;
+                const maxWidth = 700;
+                const mapWidth = Math.min(maxWidth, gameMap.parentElement.offsetWidth - 30);
+                const mapHeight = mapWidth * aspectRatio;
+                
+                gameMap.style.width = mapWidth + 'px';
+                gameMap.style.height = mapHeight + 'px';
+                
+                generateClickableZones();
+            };
+            img.src = gameData.mapImageUrl;
+        }
+
+        function generateClickableZones() {
+            const gameMap = document.getElementById('gameMap');
+            gameMap.innerHTML = '';
+            
+            gameData.locations.forEach(location => {
+                const zone = document.createElement('div');
+                zone.className = `clickable-zone ${location.type}`;
+                zone.setAttribute('data-name', location.name);
+                
+                if (location.type === 'point') {
+                    zone.style.left = location.x + '%';
+                    zone.style.top = location.y + '%';
+                } else if (location.type === 'polygon') {
+                    const points = location.points.map(p => `${p.x}% ${p.y}%`).join(', ');
+                    zone.style.clipPath = `polygon(${points})`;
+                    zone.style.width = '100%';
+                    zone.style.height = '100%';
+                    zone.style.position = 'absolute';
+                    zone.style.top = '0';
+                    zone.style.left = '0';
+                }
+                
+                zone.addEventListener('click', () => handleLocationClick(location.name));
+                gameMap.appendChild(zone);
+            });
+        }
+
+        function startGame() {
+            if (gameData.locations.length === 0) {
+                alert('Aucune configuration trouvée ! Allez dans le mode Administrateur pour configurer le quiz.');
+                return;
+            }
+            
+            resetGame();
+            gameData.gameStarted = true;
+            nextQuestion();
+        }
+
+        function resetGame() {
+            gameData.score = 0;
+            gameData.questionsAsked = 0;
+            gameData.correctAnswers = [];
+            gameData.gameStarted = false;
+            updateGameDisplay();
+            resetZoneColors();
+            document.getElementById('feedbackBox').textContent = '';
+            document.getElementById('feedbackBox').className = 'feedback-box';
+        }
+
+        function resetZoneColors() {
+            const zones = document.querySelectorAll('.clickable-zone');
+            zones.forEach(zone => {
+                zone.classList.remove('correct', 'incorrect');
+            });
+        }
+
+        function nextQuestion() {
+            if (gameData.questionsAsked >= gameData.totalQuestions) {
+                endGame();
+                return;
+            }
+
+            const remaining = gameData.locations.filter(loc => 
+                !gameData.correctAnswers.includes(loc.name)
+            );
+            
+            if (remaining.length === 0) {
+                endGame();
+                return;
+            }
+
+            const target = remaining[Math.floor(Math.random() * remaining.length)];
+            gameData.currentTarget = target.name;
+            document.getElementById('questionText').textContent = `Où se trouve : ${gameData.currentTarget} ?`;
+            document.getElementById('feedbackBox').textContent = 'Cliquez sur la carte pour répondre';
+            document.getElementById('feedbackBox').className = 'feedback-box';
+        }
+
+        function handleLocationClick(clickedName) {
+            if (!gameData.gameStarted || gameData.currentTarget === '') return;
+
+            const zone = document.querySelector(`[data-name="${clickedName}"]`);
+            const feedback = document.getElementById('feedbackBox');
+
+            if (clickedName === gameData.currentTarget) {
+                gameData.score++;
+                gameData.correctAnswers.push(clickedName);
+                zone.classList.add('correct');
+                feedback.textContent = `✓ Correct ! C'était bien ${clickedName}.`;
+                feedback.className = 'feedback-box correct';
+                
+                setTimeout(() => {
+                    gameData.questionsAsked++;
+                    updateGameDisplay();
+                    nextQuestion();
+                }, 2000);
+            } else {
+                zone.classList.add('incorrect');
+                feedback.textContent = `✗ Non, ce n'est pas ${clickedName}. Essayez encore !`;
+                feedback.className = 'feedback-box incorrect';
+                
+                setTimeout(() => {
+                    zone.classList.remove('incorrect');
+                }, 1500);
+            }
+        }
+
+        function updateGameDisplay() {
+            document.getElementById('score').textContent = gameData.score;
+            document.getElementById('questionNum').textContent = gameData.questionsAsked;
+            const progress = (gameData.questionsAsked / gameData.totalQuestions) * 100;
+            document.getElementById('progressBar').style.width = progress + '%';
+        }
+
+        function endGame() {
+            const percentage = Math.round((gameData.score / gameData.totalQuestions) * 100);
+            let message = '';
+            
+            if (percentage >= 90) {
+                message = `🏆 Excellent ! ${gameData.score}/${gameData.totalQuestions} (${percentage}%) - Vous maîtrisez parfaitement !`;
+            } else if (percentage >= 70) {
+                message = `👍 Très bien ! ${gameData.score}/${gameData.totalQuestions} (${percentage}%) - Bon travail !`;
+            } else if (percentage >= 50) {
+                message = `📚 Pas mal ! ${gameData.score}/${gameData.totalQuestions} (${percentage}%) - Continuez vos efforts !`;
+            } else {
+                message = `📖 ${gameData.score}/${gameData.totalQuestions} (${percentage}%) - Il faut réviser davantage !`;
+            }
+            
+            document.getElementById('questionText').textContent = 'Quiz terminé !';
+            document.getElementById('feedbackBox').textContent = message;
+            document.getElementById('feedbackBox').className = 'feedback-box correct';
+            gameData.gameStarted = false;
+        }
+
+        // Initialisation
+        document.addEventListener('DOMContentLoaded', function() {
+            // Charger automatiquement l'image par défaut
+            loadMapImage();
+        });
