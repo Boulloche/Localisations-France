@@ -2,272 +2,178 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Admin Jeu de Localisation - GitHub</title>
+<title>Jeu de Localisation - France</title>
 <style>
-body { margin: 0; font-family: Arial, sans-serif; }
-#container { display: flex; height: 90vh; }
+body { margin:0; font-family:Arial,sans-serif; }
+#container { display:flex; height:90vh; }
 #map-container {
-  flex: 3;
-  position: relative;
-  border: 1px solid #333;
-  background: url("fond_carte_france.jpg") no-repeat center/contain;
-  background-size: contain;
+  flex:3; position:relative; border:1px solid #333;
+  background:url("https://www.cartesfrance.fr/cartes/fond_carte_france.jpg") no-repeat center/contain;
+  background-size:contain;
 }
-#admin-panel {
-  flex: 1;
-  margin-left: 10px;
-  display: flex;
-  flex-direction: column;
-  border: 1px solid #333;
-  overflow-y: auto;
+#admin-panel, #game-panel {
+  flex:1; margin-left:10px; display:flex; flex-direction:column;
+  border:1px solid #333; overflow-y:auto;
 }
-table { width: 100%; border-collapse: collapse; flex: 1; }
-th, td { border: 1px solid #333; padding: 5px; text-align: left; }
-tr.selected { background: yellow; }
-tr.placeholder { background: #ddd; border: dashed 1px #333; }
-.zone { position: absolute; background: rgba(0, 128, 255, 0.3); cursor: pointer; }
-.handle { position: absolute; width: 8px; height: 8px; background: red; border-radius: 50%; cursor: move; }
-button { margin: 2px; padding: 5px 10px; cursor: pointer; }
-svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
-input, select { width: 90%; padding: 5px; }
-#add-modal {
-  display: none;
-  position: fixed;
-  top: 50%; left: 50%;
-  transform: translate(-50%, -50%);
-  background: white;
-  padding: 20px;
-  border: 1px solid #333;
-  border-radius: 5px;
-  box-shadow: 0 0 10px rgba(0,0,0,0.5);
-  z-index: 100;
+#login-panel {
+  flex:1; margin-left:10px; display:flex; flex-direction:column;
+  border:1px solid #333; overflow-y:auto; text-align:center;
+  padding:20px;
 }
+table { width:100%; border-collapse:collapse; flex:1; }
+th, td { border:1px solid #333; padding:5px; text-align:left; }
+tr.selected { background:yellow; }
+tr.placeholder { background:#ddd; border:dashed 1px #333; }
+.zone {
+  position:absolute; background:rgba(0,128,255,0.3); cursor:pointer;
+  border-radius:50%;
+}
+.zone.selected { outline:2px solid blue; }
+.zone.game-zone { background:rgba(0,200,100,0.3); }
+.handle {
+  position:absolute; width:8px; height:8px; background:red;
+  border-radius:50%; cursor:move; z-index:10;
+}
+button { margin:2px; padding:5px 10px; cursor:pointer; }
+svg { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; }
+polygon { fill:rgba(0,128,255,0.3); stroke:blue; stroke-width:2; }
+polygon.game-polygon { fill:rgba(0,200,100,0.3); }
+input, select { width:90%; padding:5px; }
+#add-modal, #login-modal {
+  display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+  background:white; padding:20px; border:1px solid #333; border-radius:5px;
+  box-shadow:0 0 10px rgba(0,0,0,0.5); z-index:100;
+}
+#mode-buttons { margin-bottom:10px; text-align:center; }
+#score-display { font-weight:bold; margin:10px 0; text-align:center; font-size:1.2em; }
+#game-question { font-size:1.2em; margin:10px 0; text-align:center; }
+#game-feedback { margin:10px 0; text-align:center; color:red; font-weight:bold; }
+.game-correct { color:green !important; }
+.game-button { padding:8px 15px; font-size:1em; margin:0 5px; }
+#login-form { display:flex; flex-direction:column; align-items:center; }
+#login-form input { margin:10px; width:80%; padding:8px; }
+#login-error { color:red; margin:10px 0; }
+#welcome-message { margin:20px 0; }
+.game-instructions { margin:20px 0; font-style:italic; }
+#timer { text-align:center; font-size:1.2em; font-weight:bold; margin:5px 0; }
 </style>
 </head>
 <body>
-<h2>Mode Admin - Test GitHub</h2>
+<h2>Jeu de Localisation <span id="mode-indicator">(Mode Jeu)</span></h2>
+<div id="mode-buttons">
+  <button id="mode-admin" class="game-button">Mode Admin</button>
+  <button id="mode-game" class="game-button">Mode Jeu</button>
+</div>
 <div id="container">
   <div id="map-container"></div>
-  <div id="admin-panel">
+  <div id="login-panel">
+    <div id="welcome-message">
+      <h3>Bienvenue au jeu de localisation !</h3>
+      <p>Cliquez sur "Mode Jeu" pour commencer à jouer.</p>
+      <p class="game-instructions">Trouvez les villes, provinces, fleuves et montagnes sur la carte de France.</p>
+    </div>
+  </div>
+  <div id="admin-panel" style="display:none;">
     <div>
       <button id="add-row">Ajouter</button>
       <button id="delete-row">Supprimer</button>
       <button id="edit-row">Modifier</button>
     </div>
     <table id="locations">
-      <thead>
-        <tr><th>Nom</th><th>Type</th><th>Coordonnées</th></tr>
-      </thead>
+      <thead><tr><th>Nom</th><th>Type</th><th>Coordonnées</th></tr></thead>
       <tbody></tbody>
     </table>
   </div>
+  <div id="game-panel">
+    <div id="score-display">Score: 0/0</div>
+    <div id="timer">Temps: 0s</div>
+    <div id="game-question">Cliquez sur "Mode Jeu" pour commencer</div>
+    <div id="game-feedback"></div>
+  </div>
 </div>
-
 <div id="add-modal">
   <h3>Ajouter une zone</h3>
-  <label>Nom : <input type="text" id="new-name" required></label><br>
-  <label>Type :
-    <select id="new-type">
-      <option value="point">Point</option>
-      <option value="polygone">Polygone</option>
-    </select>
-  </label><br>
+  <label>Nom: <input type="text" id="new-name" required></label><br>
+  <label>Type: <select id="new-type">
+    <option value="point">Point</option>
+    <option value="polygone">Polygone</option>
+  </select></label><br>
   <button id="confirm-add">Confirmer</button>
   <button id="cancel-add">Annuler</button>
 </div>
-
+<div id="login-modal">
+  <h3>Accès Admin</h3>
+  <form id="login-form">
+    <input type="password" id="password-input" placeholder="Mot de passe" required>
+    <div id="login-error"></div>
+    <button type="submit" id="submit-password" class="game-button">Se connecter</button>
+  </form>
+</div>
 <script>
-// --- Variables globales ---
+// ===== CONFIGURATION =====
+const ADMIN_PASSWORD = "vymzywnz";
+let loginAttempts = 0;
+const MAX_ATTEMPTS = 3;
+const LOCKOUT_TIME = 5*60*1000;
+
+// ===== VARIABLES =====
 const map = document.getElementById("map-container");
 const tbody = document.querySelector("#locations tbody");
-let selectedRow = null;
-let currentZone = null;
-let currentPoints = [];
-let handles = [];
-const actionHistory = [];
+const adminPanel = document.getElementById("admin-panel");
+const gamePanel = document.getElementById("game-panel");
+const loginPanel = document.getElementById("login-panel");
+const modeIndicator = document.getElementById("mode-indicator");
+const scoreDisplay = document.getElementById("score-display");
+const gameQuestion = document.getElementById("game-question");
+const gameFeedback = document.getElementById("game-feedback");
+const loginError = document.getElementById("login-error");
+const timerDisplay = document.getElementById("timer");
 
-// --- Fonctions utilitaires ---
-function showModal(modalId){ document.getElementById(modalId).style.display="block"; }
-function hideModal(modalId){ document.getElementById(modalId).style.display="none"; }
-function confirmAction(message){ return confirm(message); }
+let selectedRow=null, currentZone=null, currentPoints=[], handles=[], actionHistory=[], isDragging=false, isGameMode=true, gameZones=[], currentGameZone=null, score={correct:0,total:0}, lockoutUntil=0, timer=null, timeElapsed=0, timerStarted=false;
 
-// --- Gestion des lignes ---
-function createRow(name="Nouvelle", type="point", coords=""){
-  const tr=document.createElement("tr");
-  tr.dataset.name=name;
-  tr.dataset.type=type;
+// ===== UTILITAIRES =====
+const showModal=id=>document.getElementById(id).style.display="block";
+const hideModal=id=>document.getElementById(id).style.display="none";
+const confirmAction=msg=>confirm(msg);
+function checkLockout(){if(Date.now()<lockoutUntil){const m=Math.ceil((lockoutUntil-Date.now())/60000);loginError.textContent=`Trop de tentatives. Veuillez réessayer dans ${m} minute(s).`;return true;} return false;}
 
-  const tdName=document.createElement("td");
-  const nameInput=document.createElement("input");
-  nameInput.value=name; nameInput.readOnly=true; nameInput.style.border="none";
-  tdName.appendChild(nameInput);
+// ===== MODE =====
+function setAdminMode(){if(adminPanel.style.display!="none")return;if(checkLockout()){showModal("login-modal");return;} showModal("login-modal");document.getElementById("password-input").value="";loginError.textContent="";}
+function setGameMode(){isGameMode=true;adminPanel.style.display="none";gamePanel.style.display="flex";loginPanel.style.display="none";modeIndicator.textContent="(Mode Jeu)";prepareGame();updateScoreDisplay();}
 
-  const tdType=document.createElement("td");
-  const typeSelect=document.createElement("select");
-  ["Point","Polygone"].forEach(t=>{
-    const option=document.createElement("option");
-    option.value=t.toLowerCase(); option.textContent=t;
-    if(option.value===type) option.selected=true;
-    typeSelect.appendChild(option);
-  });
-  tdType.appendChild(typeSelect);
+// ===== CHRONO =====
+function startTimer(){if(timerStarted)return;timerStarted=true;timeElapsed=0;timerDisplay.textContent=`Temps: 0s`;timer=setInterval(()=>{timeElapsed++;timerDisplay.textContent=`Temps: ${timeElapsed}s`;},1000);}
 
-  const tdCoords=document.createElement("td"); tdCoords.textContent=coords;
-  tr.appendChild(tdName); tr.appendChild(tdType); tr.appendChild(tdCoords);
-  tbody.appendChild(tr);
+// ===== ADMIN LOGIN =====
+document.getElementById("mode-admin").addEventListener("click",setAdminMode);
+document.getElementById("login-form").addEventListener("submit",e=>{
+e.preventDefault();if(checkLockout())return;
+const password=document.getElementById("password-input").value;
+if(password===ADMIN_PASSWORD){hideModal("login-modal");isGameMode=false;adminPanel.style.display="flex";gamePanel.style.display="none";loginPanel.style.display="none";modeIndicator.textContent="(Mode Admin)";clearGameZones();loginAttempts=0;lockoutUntil=0;} else {loginAttempts++;loginError.textContent="Mot de passe incorrect !";if(loginAttempts>=MAX_ATTEMPTS){lockoutUntil=Date.now()+LOCKOUT_TIME;loginError.textContent=`Trop de tentatives. Veuillez réessayer dans 5 minutes.`;setTimeout(()=>{loginAttempts=0;lockoutUntil=0;if(document.getElementById("login-modal").style.display==="block"){loginError.textContent="";}},LOCKOUT_TIME);}}});
 
-  nameInput.addEventListener("input",()=>tr.dataset.name=nameInput.value);
-  typeSelect.addEventListener("change",()=>tr.dataset.type=typeSelect.value);
-}
+// ===== CREER LIGNE =====
+function createRow(name,type,coords){const tr=document.createElement("tr");tr.dataset.name=name;tr.dataset.type=type;tr.dataset.zoneId="";const nameInput=document.createElement("input");nameInput.value=name;nameInput.readOnly=true;nameInput.style.border="none";tr.cells?tr.cells[0].appendChild(nameInput):"";const typeSelect=document.createElement("select");["point","polygone"].forEach(t=>{const opt=document.createElement("option");opt.value=t;opt.textContent=t.charAt(0).toUpperCase()+t.slice(1);if(t===type)opt.selected=true;typeSelect.appendChild(opt);});typeSelect.addEventListener("change",()=>tr.dataset.type=typeSelect.value);tr.innerHTML=`<td></td><td></td><td></td>`;tr.cells[0].appendChild(nameInput);tr.cells[1].appendChild(typeSelect);tbody.appendChild(tr);return tr;}
 
-// --- Sélection d'une ligne ---
-tbody.addEventListener("click", e=>{
-  const row=e.target.closest("tr"); if(!row) return;
-  if(selectedRow) selectedRow.classList.remove("selected");
-  selectedRow=row; row.classList.add("selected");
-  currentPoints=[]; currentZone=null; handles.forEach(h=>h.remove()); handles=[];
-  const zoneId=row.dataset.zoneId;
-  if(zoneId){ currentZone=document.getElementById(zoneId);
-    if(row.dataset.type==="polygone") currentPoints=JSON.parse(row.cells[2].textContent||"[]"); drawHandles();
-    else if(currentZone) makeDraggable(currentZone,(nx,ny)=>row.cells[2].textContent=`x:${nx+10},y:${ny+10},r:10`);
-  }
-});
+// ===== SELECTION =====
+function selectRow(row){if(isDragging||isGameMode)return;if(selectedRow){selectedRow.classList.remove("selected");document.getElementById(selectedRow.dataset.zoneId)?.classList.remove("selected");}selectedRow=row;row.classList.add("selected");currentPoints=[];currentZone=null;handles.forEach(h=>h.remove());handles=[];const zoneId=row.dataset.zoneId;if(zoneId){currentZone=document.getElementById(zoneId);currentZone?.classList.add("selected");if(row.dataset.type==="polygone"){currentPoints=JSON.parse(row.cells[2].textContent||"[]");drawHandles();}}}
 
-// --- Ajouter ligne ---
-document.getElementById("add-row").addEventListener("click",()=>{ showModal("add-modal"); document.getElementById("new-name").value="Nouvelle zone"; });
-document.getElementById("confirm-add").addEventListener("click",()=>{
-  const name=document.getElementById("new-name").value.trim();
-  const type=document.getElementById("new-type").value;
-  if(!name){ alert("Le nom ne peut pas être vide !"); return; }
-  createRow(name,type,""); hideModal("add-modal");
-});
-document.getElementById("cancel-add").addEventListener("click",()=>hideModal("add-modal"));
+// ===== DESSIN POIGNEES =====
+function drawHandles(){handles.forEach(h=>h.remove());handles=[];if(!currentZone)return;const poly=currentZone.querySelector("polygon");currentPoints.forEach((p,i)=>{const handle=document.createElement("div");handle.className="handle";handle.style.left=`${p.x-4}px`;handle.style.top=`${p.y-4}px`;map.appendChild(handle);makeDraggable(handle,(nx,ny)=>{currentPoints[i]={x:nx+4,y:ny+4};poly.setAttribute("points",currentPoints.map(p=>`${p.x},${p.y}`).join(" "));selectedRow.cells[2].textContent=JSON.stringify(currentPoints);});handles.push(handle);});}
 
-// --- Supprimer ligne ---
-document.getElementById("delete-row").addEventListener("click",()=>{
-  if(!selectedRow){ alert("Aucune ligne sélectionnée !"); return; }
-  if(!confirmAction(`Supprimer "${selectedRow.dataset.name}" ?`)) return;
-  const zoneId=selectedRow.dataset.zoneId;
-  if(zoneId){ const zone=document.getElementById(zoneId); if(zone) zone.remove(); }
-  selectedRow.remove(); selectedRow=null;
-});
+// ===== JEU =====
+function prepareGame(){gameZones=[];document.querySelectorAll("#locations tbody tr").forEach(row=>{if(row.dataset.zoneId){gameZones.push({name:row.dataset.name,type:row.dataset.type,zoneId:row.dataset.zoneId,element:document.getElementById(row.dataset.zoneId)})}});if(gameZones.length===0){gameQuestion.textContent="Aucune zone disponible. Passez en mode admin pour en ajouter.";return;} gameZones=shuffleArray(gameZones);score={correct:0,total:0};nextGameQuestion();}
+function shuffleArray(a){for(let i=a.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+function nextGameQuestion(){if(gameZones.length===0){gameQuestion.textContent=`Jeu terminé ! Votre score: ${score.correct}/${score.total}`;gameFeedback.textContent="";return;} currentGameZone=gameZones.pop();gameQuestion.textContent=`Placez ${currentGameZone.name} sur la carte !`;gameFeedback.textContent="";gameFeedback.className="";if(currentGameZone.type==="point"){currentGameZone.element.classList.add("game-zone");} else {currentGameZone.element.querySelector("polygon").classList.add("game-polygon");}}
+function checkGameAnswer(x,y){if(!currentGameZone)return;const zoneElement=currentGameZone.element;const rect=zoneElement.getBoundingClientRect();const zoneX=rect.left+window.scrollX;const zoneY=rect.top+window.scrollY;let isCorrect=false;if(currentGameZone.type==="point"){const centerX=zoneX+zoneElement.offsetWidth/2;const centerY=zoneY+zoneElement.offsetHeight/2;const dist=Math.sqrt(Math.pow(x-centerX,2)+Math.pow(y-centerY,2));isCorrect=dist<=20;} else {const poly=zoneElement.querySelector("polygon");const points=poly.getAttribute("points").split(" ").map(p=>p.split(",")).map(([x,y])=>({x:parseFloat(x)+zoneX,y:parseFloat(y)+zoneY}));isCorrect=pointInPolygon({x,y},points);}if(isCorrect){gameFeedback.textContent="Bonne réponse !";gameFeedback.className="game-correct";score.correct++;} else {gameFeedback.textContent="Mauvaise réponse, essayez encore !";} score.total++;updateScoreDisplay();if(isCorrect){setTimeout(()=>{if(currentGameZone.type==="point"){currentGameZone.element.classList.remove("game-zone");} else {currentGameZone.element.querySelector("polygon").classList.remove("game-polygon");} nextGameQuestion();},1000);}}
+function pointInPolygon(point,polygon){let inside=false;for(let i=0,j=polygon.length-1;i<polygon.length;j=i++){const xi=polygon[i].x,yi=polygon[i].y;xj=polygon[j].x,yj=polygon[j].y;const intersect=((yi>point.y)!==(yj>point.y))&&(point.x<(xj-xi)*(point.y-yi)/(yj-yi)+xi);if(intersect)inside=!inside;}return inside;}
+function updateScoreDisplay(){scoreDisplay.textContent=`Score: ${score.correct}/${score.total}`;}
 
-// --- Modifier ligne ---
-document.getElementById("edit-row").addEventListener("click",()=>{
-  if(!selectedRow){ alert("Aucune ligne sélectionnée !"); return; }
-  const nameInput=selectedRow.cells[0].querySelector("input");
-  const typeSelect=selectedRow.cells[1].querySelector("select");
-  nameInput.readOnly=!nameInput.readOnly;
-  typeSelect.disabled=!typeSelect.disabled;
-  if(nameInput.readOnly){ selectedRow.dataset.name=nameInput.value.trim(); selectedRow.dataset.type=typeSelect.value; nameInput.style.border="none"; }
-  else{ nameInput.style.border="1px solid #333"; nameInput.focus(); }
-});
+// ===== EVENEMENTS =====
+document.getElementById("mode-game").addEventListener("click",()=>{setGameMode();startTimer();});
+map.addEventListener("click",e=>{if(isGameMode){startTimer();checkGameAnswer(e.clientX,e.clientY);}});
 
-// --- Dessin sur la carte ---
-map.addEventListener("click",e=>{
-  if(!selectedRow || e.target.classList.contains("handle") || e.target.tagName==="polygon") return;
-  const rect=map.getBoundingClientRect();
-  const x=e.clientX-rect.left; const y=e.clientY-rect.top; const type=selectedRow.dataset.type;
-
-  if(type==="point"){
-    if(selectedRow.dataset.zoneId) return;
-    const zone=document.createElement("div"); zone.className="zone";
-    zone.style.left=x-10+"px"; zone.style.top=y-10+"px"; zone.style.width="20px"; zone.style.height="20px";
-    zone.id="zone"+Date.now(); selectedRow.dataset.zoneId=zone.id; map.appendChild(zone);
-    selectedRow.cells[2].textContent=`x:${x},y:${y},r:10`;
-    makeDraggable(zone,(nx,ny)=>selectedRow.cells[2].textContent=`x:${nx+10},y:${ny+10},r:10`);
-    actionHistory.push({type:"point",element:zone,row:selectedRow});
-  }
-  else if(type==="polygone"){
-    if(!currentZone){ currentZone=document.createElementNS("http://www.w3.org/2000/svg","svg");
-      currentZone.style.position="absolute"; currentZone.style.top=0; currentZone.style.left=0;
-      currentZone.setAttribute("width","100%"); currentZone.setAttribute("height","100%");
-      currentZone.id="zone"+Date.now(); selectedRow.dataset.zoneId=currentZone.id; map.appendChild(currentZone); }
-    currentPoints.push({x,y});
-    let poly=currentZone.querySelector("polygon");
-    if(!poly){ poly=document.createElementNS("http://www.w3.org/2000/svg","polygon");
-      poly.setAttribute("fill","rgba(0,128,255,0.3)"); poly.setAttribute("stroke","blue"); poly.setAttribute("stroke-width","2");
-      currentZone.appendChild(poly); }
-    poly.setAttribute("points",currentPoints.map(p=>`${p.x},${p.y}`).join(" "));
-    selectedRow.cells[2].textContent=JSON.stringify(currentPoints); drawHandles();
-    actionHistory.push({type:"polygone",element:currentZone,row:selectedRow,points:JSON.parse(JSON.stringify(currentPoints))});
-  }
-});
-
-// --- Gestion handles ---
-function clearHandles(){ handles.forEach(h=>h.remove()); handles=[]; }
-function drawHandles(){
-  clearHandles(); const poly=currentZone.querySelector("polygon");
-  currentPoints.forEach((p,i)=>{
-    const handle=document.createElement("div"); handle.className="handle";
-    handle.style.left=p.x-4+"px"; handle.style.top=p.y-4+"px"; map.appendChild(handle);
-    makeDraggable(handle,(nx,ny)=>{
-      currentPoints[i]={x:nx+4,y:ny+4};
-      poly.setAttribute("points",currentPoints.map(p=>`${p.x},${p.y}`).join(" "));
-      selectedRow.cells[2].textContent=JSON.stringify(currentPoints);
-    });
-    handles.push(handle);
-  });
-}
-
-// --- Déplacement éléments ---
-function makeDraggable(element,onMove){
-  let offsetX,offsetY;
-  element.addEventListener("mousedown",e=>{
-    e.stopPropagation();
-    const rect=map.getBoundingClientRect();
-    offsetX=e.clientX-element.getBoundingClientRect().left;
-    offsetY=e.clientY-element.getBoundingClientRect().top;
-    function moveHandler(ev){
-      const newX=ev.clientX-rect.left-offsetX;
-      const newY=ev.clientY-rect.top-offsetY;
-      element.style.left=newX+"px"; element.style.top=newY+"px"; onMove(newX,newY);
-    }
-    function upHandler(){ window.removeEventListener("mousemove",moveHandler); window.removeEventListener("mouseup",upHandler); }
-    window.addEventListener("mousemove",moveHandler);
-    window.addEventListener("mouseup",upHandler);
-  });
-}
-
-// --- Ctrl+Z ---
-window.addEventListener("keydown",e=>{
-  if(e.ctrlKey && e.key==="z"){ e.preventDefault();
-    if(actionHistory.length===0) return;
-    const lastAction=actionHistory.pop();
-    if(lastAction.type==="point"){ lastAction.element.remove(); lastAction.row.dataset.zoneId=""; lastAction.row.cells[2].textContent=""; currentZone=null; }
-    else if(lastAction.type==="polygone"){
-      const poly=lastAction.element.querySelector("polygon");
-      if(poly){ currentPoints=lastAction.points.slice(0,-1);
-        if(currentPoints.length===0){ lastAction.element.remove(); lastAction.row.dataset.zoneId=""; lastAction.row.cells[2].textContent=""; currentZone=null; }
-        else{ poly.setAttribute("points",currentPoints.map(p=>`${p.x},${p.y}`).join(" ")); lastAction.row.cells[2].textContent=JSON.stringify(currentPoints); drawHandles(); }
-      }
-    }
-  }
-});
-
-// --- Glisser-déposer lignes ---
-let draggedRow=null, placeholder=null;
-tbody.addEventListener("mousedown",e=>{
-  const row=e.target.closest("tr"); if(!row||["INPUT","SELECT"].includes(e.target.tagName)) return;
-  draggedRow=row;
-  placeholder=document.createElement("tr"); placeholder.className="placeholder"; placeholder.style.height=row.offsetHeight+"px";
-  row.parentNode.insertBefore(placeholder,row.nextSibling); row.style.opacity="0.5";
-  function moveHandler(ev){
-    const y=ev.clientY;
-    const rows=Array.from(tbody.querySelectorAll("tr")).filter(r=>r!==draggedRow&&r!==placeholder);
-    for(const r of rows){ const rect=r.getBoundingClientRect(); if(y>rect.top&&y<rect.bottom){ if(r.nextSibling!==placeholder) r.parentNode.insertBefore(placeholder,r.nextSibling); break; } }
-  }
-  function upHandler(){ placeholder.parentNode.insertBefore(draggedRow,placeholder); draggedRow.style.opacity="1"; placeholder.remove(); draggedRow=null; placeholder=null;
-    window.removeEventListener("mousemove",moveHandler); window.removeEventListener("mouseup",upHandler);
-  }
-  window.addEventListener("mousemove",moveHandler); window.addEventListener("mouseup",upHandler);
-});
-
-// --- Pré-remplissage ---
-createRow("Paris","point","");
-createRow("Marseille","point","");
-createRow("Bretagne","polygone","");
-createRow("Auvergne","polygone","");
+// ===== PRÉ-REMPLISSAGE =====
+["Paris","Marseille","Lyon","Toulouse","Nice","Nantes","Montpellier","Strasbourg","Bordeaux","Lille","Rennes","Reims","Le Havre","Saint-Étienne","Toulon","Grenoble","Dijon","Angers","Nîmes","Villeurbanne","Bretagne","Auvergne","Île-de-France","Nouvelle-Aquitaine","Occitanie","Provence-Alpes-Côte d'Azur","Hauts-de-France","Normandie","Grand Est","Bourgogne-Franche-Comté","Ouessant","Seine","Loire","Rhône","Garonne","Alpes","Pyrénées","Massif-Central","Vosges","Corsica"].forEach(name=>createRow(name,"point",""));
 </script>
 </body>
 </html>
